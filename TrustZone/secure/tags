@@ -1,0 +1,155 @@
+!_TAG_FILE_FORMAT	2	/extended format; --format=1 will not append ;" to lines/
+!_TAG_FILE_SORTED	1	/0=unsorted, 1=sorted, 2=foldcase/
+!_TAG_PROGRAM_AUTHOR	Darren Hiebert	/dhiebert@users.sourceforge.net/
+!_TAG_PROGRAM_NAME	Exuberant Ctags	//
+!_TAG_PROGRAM_URL	http://ctags.sourceforge.net	/official site/
+!_TAG_PROGRAM_VERSION	5.9~svn20110310	//
+ABT_MODE_STACK_BASE	secure_start.S	/^#define ABT_MODE_STACK_BASE 0x300$/;"	d
+ADDCH	printf.c	153;"	d	file:
+ARMGNU	Makefile	/^ARMGNU ?= arm-xilinx-linux-gnueabi$/;"	m
+Asm	common.h	6;"	d
+CC	Makefile	/^CC  = $(ARMGNU)-gcc$/;"	m
+CFG_PBSIZE	printf.h	16;"	d
+CONFIG_SYS_HZ	timer.h	4;"	d
+CONFIG_SYS_TIMERBASE	timer.h	13;"	d
+CONFIG_SYS_TIMER_COUNTER	timer.h	12;"	d
+COPY	Makefile	/^COPY= $(ARMGNU)-objcopy$/;"	m
+CP15_GET_SCR	common.h	9;"	d
+CP15_SET_CPACR	common.h	8;"	d
+CP15_SET_NSACR	common.h	7;"	d
+CP15_SET_SCR	common.h	10;"	d
+DUMP	Makefile	/^DUMP= $(ARMGNU)-objdump$/;"	m
+FIQ_MODE_STACK_BASE	secure_start.S	/^#define FIQ_MODE_STACK_BASE 0x100$/;"	d
+INT_MAX	printf.h	18;"	d
+IRQ_MODE_STACK_BASE	secure_start.S	/^#define IRQ_MODE_STACK_BASE 0x200 $/;"	d
+KERN_DEBUG	printf.h	13;"	d
+KERN_ERROR	printf.h	11;"	d
+KERN_INFO	printf.h	12;"	d
+KERN_UART	printf.h	10;"	d
+LD	Makefile	/^LD  = $(ARMGNU)-ld$/;"	m
+LED_ON	secure_start.S	/^LED_ON:$/;"	l
+LEFT	printf.c	149;"	d	file:
+MON_MODE_STACK_BASE	secure_start.S	/^#define MON_MODE_STACK_BASE 0x4000$/;"	d
+NS_STACK_BASE	monitor.S	/^NS_STACK_BASE:$/;"	l
+NS_STACK_LIMIT	monitor.S	/^NS_STACK_LIMIT:$/;"	l
+NS_STACK_SP	monitor.S	/^NS_STACK_SP:$/;"	l
+NS_vector	secure_start.S	/^NS_vector:$/;"	l
+NULL	printf.h	17;"	d
+PLATFORM_LIBGCC	Makefile	/^PLATFORM_LIBGCC = \/opt\/CodeSourcery\/Sourcery_CodeBench_Lite_for_Xilinx_GNU_Linux\/lib\/gcc\/arm-xilinx-linux-gnueabi\/4.6.1 $/;"	m
+PLUS	printf.c	147;"	d	file:
+SCUTIMER_CONTROL_AUTO_RELOAD_MASK	timer.h	8;"	d
+SCUTIMER_CONTROL_ENABLE_MASK	timer.h	9;"	d
+SCUTIMER_CONTROL_PRESCALER_MASK	timer.h	6;"	d
+SCUTIMER_CONTROL_PRESCALER_SHIFT	timer.h	7;"	d
+SIGN	printf.c	146;"	d	file:
+SMALL	printf.c	150;"	d	file:
+SMC_Handler	monitor.S	/^SMC_Handler:$/;"	l
+SPACE	printf.c	148;"	d	file:
+SPECIAL	printf.c	151;"	d	file:
+SVC_MODE_STACK_BASE	secure_start.S	/^#define SVC_MODE_STACK_BASE (0x5000)$/;"	d
+SYS_MODE_STACK_BASE	secure_start.S	/^#define SYS_MODE_STACK_BASE 0x500$/;"	d
+S_STACK_BASE	monitor.S	/^S_STACK_BASE:$/;"	l
+S_STACK_LIMIT	monitor.S	/^S_STACK_LIMIT:$/;"	l
+S_STACK_SP	monitor.S	/^S_STACK_SP:$/;"	l
+TIMER_LOAD_VAL	timer.h	16;"	d
+TIMER_PRESCALE	timer.h	17;"	d
+TRACE	printf.h	14;"	d
+UART_BASE	uart.h	4;"	d
+UND_MODE_STACK_BASE	secure_start.S	/^#define UND_MODE_STACK_BASE 0x400$/;"	d
+ZEROPAD	printf.c	145;"	d	file:
+ZYNQ_SCUTIMER_BASEADDR	timer.h	11;"	d
+_C	printf.h	23;"	d
+_D	printf.h	22;"	d
+_L	printf.h	21;"	d
+_LINUX_TYPES_H	types.h	2;"	d
+_P	printf.h	24;"	d
+_PRINTF_H	printf.h	2;"	d
+_S	printf.h	25;"	d
+_SP	printf.h	27;"	d
+_TIMER_H	timer.h	2;"	d
+_U	printf.h	20;"	d
+_UART_H	uart.h	2;"	d
+_X	printf.h	26;"	d
+__div64_32	printf.c	/^uint32_t __div64_32(unsigned long long *n, unsigned int base)$/;"	f
+__ismask	printf.h	30;"	d
+__kernel_size_t	types.h	/^typedef unsigned int 	__kernel_size_t;$/;"	t
+__kernel_ssize_t	types.h	/^typedef signed int 	__kernel_ssize_t;$/;"	t
+__s16	types.h	/^typedef signed short __s16;$/;"	t
+__s32	types.h	/^typedef signed int __s32;$/;"	t
+__s64	types.h	/^typedef signed long long __s64;$/;"	t
+__s8	types.h	/^typedef signed char __s8; $/;"	t
+__u16	types.h	/^typedef unsigned short __u16;$/;"	t
+__u32	types.h	/^typedef unsigned int __u32;$/;"	t
+__u64	types.h	/^typedef unsigned long long __u64;$/;"	t
+__u8	types.h	/^typedef unsigned char __u8; $/;"	t
+_ctype	printf.c	/^const unsigned char _ctype[] = { $/;"	v
+_start_secure	secure_start.S	/^_start_secure:$/;"	l
+control	timer.h	/^	unsigned int control; \/* Timer Control Register *\/$/;"	m	struct:scu_timer
+counter	timer.h	/^	unsigned int counter; \/* Timer Counter Register *\/$/;"	m	struct:scu_timer
+cpsr_asyc_bit	secure_start.S	/^#define cpsr_asyc_bit	(0x100)$/;"	d
+cpsr_fiq_bit	secure_start.S	/^#define cpsr_fiq_bit	(0x40)$/;"	d
+cpsr_irq_bit	secure_start.S	/^#define cpsr_irq_bit	(0x80)$/;"	d
+cpsr_mode_abt	secure_start.S	/^#define cpsr_mode_abt	(0x17)$/;"	d
+cpsr_mode_fiq	secure_start.S	/^#define cpsr_mode_fiq	(0x11)$/;"	d
+cpsr_mode_irq	secure_start.S	/^#define cpsr_mode_irq	(0x12)$/;"	d
+cpsr_mode_mon	secure_start.S	/^#define cpsr_mode_mon	(0x16)$/;"	d
+cpsr_mode_svc	secure_start.S	/^#define cpsr_mode_svc	(0x13)$/;"	d
+cpsr_mode_sys	secure_start.S	/^#define cpsr_mode_sys	(0x1F)$/;"	d
+cpsr_mode_und	secure_start.S	/^#define cpsr_mode_und	(0x1b)$/;"	d
+cpsr_mode_use	secure_start.S	/^#define cpsr_mode_use	(0x10)$/;"	d
+do_div	printf.c	10;"	d	file:
+do_div	timer.c	7;"	d	file:
+get_ticks	timer.c	/^unsigned long long get_ticks(void)$/;"	f
+get_timer	timer.c	/^unsigned long get_timer(unsigned int base)$/;"	f
+getc	printf.h	9;"	d
+gotosleep	secure_start.S	/^gotosleep:$/;"	l
+int16_t	types.h	/^typedef		__s16		int16_t;$/;"	t
+int32_t	types.h	/^typedef		__s32		int32_t;$/;"	t
+int64_t	types.h	/^typedef		__s64		int64_t;$/;"	t
+int8_t	types.h	/^typedef		__s8		int8_t;$/;"	t
+is_digit	printf.c	8;"	d	file:
+is_digit	printf.h	29;"	d
+isalnum	printf.h	31;"	d
+load	timer.h	/^        unsigned int load; \/* Timer Load Register *\/$/;"	m	struct:scu_timer
+monitor	monitor.S	/^monitor:$/;"	l
+monitorInit	monitor.S	/^monitorInit:$/;"	l
+ns_image	monitor.S	/^#define ns_image 0x0020100$/;"	d
+number	printf.c	/^static char *number(char *buf, char *end, unsigned long long num,$/;"	f	file:
+pointer	printf.c	/^static char *pointer(const char *fmt, char *buf, char *end, void *ptr,$/;"	f	file:
+printf	printf.c	/^int printf(const char *fmt, ...)$/;"	f
+put_dec	printf.c	/^static char *put_dec(char *buf, unsigned long num)$/;"	f	file:
+put_dec_full	printf.c	/^static char *put_dec_full(char *buf, unsigned q)$/;"	f	file:
+put_dec_trunc	printf.c	/^static char *put_dec_trunc(char *buf, unsigned q)$/;"	f	file:
+putchar	uart.h	5;"	d
+raise	printf.c	/^int raise(int signum)$/;"	f
+readl	common.h	3;"	d
+scu_timer	timer.h	/^struct scu_timer {$/;"	s
+secure_main	s_boot.c	/^int secure_main(void)$/;"	f
+size_t	types.h	/^typedef __kernel_size_t		size_t;$/;"	t
+skip_atoi	printf.c	/^static int skip_atoi(const char **s)$/;"	f	file:
+sprintf	printf.c	/^int sprintf(char *buf, const char *fmt, ...)$/;"	f
+ssize_t	types.h	/^typedef __kernel_ssize_t	ssize_t;$/;"	t
+string	printf.c	/^static char *string(char *buf, char *end, char *s, int field_width,$/;"	f	file:
+strnlen	printf.c	/^unsigned int strnlen(const char * s, unsigned int count)$/;"	f
+tick_to_time	timer.c	/^static unsigned long long tick_to_time(unsigned  long tick)$/;"	f	file:
+timer_base	timer.c	/^static struct scu_timer *timer_base =(struct scu_timer *)ZYNQ_SCUTIMER_BASEADDR;$/;"	v	typeref:struct:scu_timer	file:
+timer_get_us	timer.c	/^unsigned long timer_get_us(void)$/;"	f
+timer_init	timer.c	/^int timer_init(void)$/;"	f
+timer_printf	printf.c	/^int timer_printf(const char *fmt, ...)$/;"	f
+timer_read_counter	timer.c	/^unsigned long timer_read_counter(void)$/;"	f
+u_char	types.h	/^typedef unsigned char		u_char;$/;"	t
+u_int	types.h	/^typedef unsigned int		u_int;$/;"	t
+u_long	types.h	/^typedef unsigned long		u_long;$/;"	t
+u_short	types.h	/^typedef unsigned short		u_short;$/;"	t
+uart_init	uart.c	/^void uart_init(void)$/;"	f
+uart_putc	uart.c	/^void uart_putc(char c)$/;"	f
+uart_puts	uart.c	/^void uart_puts(const char *s) $/;"	f
+uint16_t	types.h	/^typedef		__u16		uint16_t;$/;"	t
+uint32_t	types.h	/^typedef		__u32		uint32_t;$/;"	t
+uint64_t	types.h	/^typedef		__u64		uint64_t;$/;"	t
+uint8_t	types.h	/^typedef		__u8		uint8_t;$/;"	t
+vscnprintf	printf.c	/^int vscnprintf(char *buf, unsigned int size, const char *fmt, va_list args)$/;"	f
+vsnprintf	printf.c	/^int vsnprintf(char *buf, unsigned int size, const char *fmt,$/;"	f
+vsnprintf_internal	printf.c	/^static int vsnprintf_internal(char *buf, unsigned int size, const char *fmt,$/;"	f	file:
+vsprintf	printf.c	/^int vsprintf(char *buf, const char *fmt, va_list args)$/;"	f
+writel	common.h	2;"	d

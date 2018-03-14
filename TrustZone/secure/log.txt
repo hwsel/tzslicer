@@ -1,0 +1,4 @@
+arm-xilinx-linux-gnueabi-gcc -c -mcpu=cortex-a9 -mlittle-endian -msoft-float -Wall -Os -nostdlib secure_start.S
+arm-xilinx-linux-gnueabi-gcc -c -mcpu=cortex-a9 -mlittle-endian -msoft-float -Wall -Os -nostdlib s_boot.c printf.c timer.c uart.c
+arm-xilinx-linux-gnueabi-gcc -c -mcpu=cortex-a9 -mlittle-endian -msoft-float -Wall -Os -nostdlib monitor.S
+arm-xilinx-linux-gnueabi-ld  -nostartfiles -static -nostdlib -T x-load.lds secure_start.o s_boot.o monitor.o printf.o timer.o uart.o -o secure.elf  -lgcc -L/opt/CodeSourcery/Sourcery_CodeBench_Lite_for_Xilinx_GNU_Linux/lib/gcc/arm-xilinx-linux-gnueabi/4.6.1
