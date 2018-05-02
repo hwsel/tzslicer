@@ -1,8 +1,4 @@
 # TZSlicer
-<strong>
-This work is not completed, and it still requires ongoing improvements.
-</strong>
-
 
 ## 1 Framework Overview
  - TZSlicer is an C program slicer for hardware isolation [(ARM TrustZone)](http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.prd29-genc-009492c/index.html), which processes the sensitive data in the secure world and non-sensitive data in the normal world.
