@@ -1,4 +1,4 @@
-This is a preliminary version of the source code for TZSlicer based on our HOST 2018 publication: "TZSlicer: Security-Aware Dynamic Program Slicing for Hardware Isolation". Further updates of the code will be provided to this site as the project continues. 
+This is a preliminary version of the source code for TZSlicer based on our HOST 2018 publication: "TZSlicer: Security-Aware Dynamic Program Slicing for Hardware Isolation". Further updates of the code will be provided to this site as the project continues. Please direct your questions and comments to hwselunl@gmail.com.
 
 # TZSlicer
 
