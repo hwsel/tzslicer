@@ -70,7 +70,7 @@ def TZl_load_functions_line_nums():
                         else_head_index = conditional_state[2:][0] - all_functions[function_index][2][0][0]
                         else_tail_index = conditional_state[2:][1] - all_functions[function_index][2][0][0]
                         if block_in_same_world(function_index, if_head_index, if_tail_index) and block_in_same_world(function_index, else_head_index, else_tail_index):
-                            if remove_empty_block(function_index, conditional_state[2:]) and status_else_head != status_else_content:
+                            if remove_empty_block(function_index, conditional_state[2:]) and status_else_head != status_else_content and status_else_head != 'x':
                                 status_update_flag = True
                                 remove_empty_block(function_index, conditional_state[:2])
                 for loop_state in function[4]:
@@ -80,7 +80,6 @@ def TZl_load_functions_line_nums():
                         status_update_flag = True
                 if not status_update_flag:
                     break
-
         function_index += 1
     # print('TZl: ', all_functions)
 
@@ -95,8 +94,9 @@ def remove_empty_block(function_index, statement):
     tail_index = tail - all_functions[function_index][2][0][0]
     if block_in_same_world(function_index, head_index, tail_index):
         status = all_functions[function_index][2][head_index+1][1]
-        all_functions[function_index][2][head_index][1] = status
-        all_functions[function_index][2][tail_index][1] = status
+        if all_functions[function_index][2][head_index][1] != 'x':
+            all_functions[function_index][2][head_index][1] = status
+            all_functions[function_index][2][tail_index][1] = status
         return True
     return False
 
@@ -105,14 +105,31 @@ def remove_empty_block(function_index, statement):
 # input: function_index, block_head, block_tail
 # output: True: same world; False: different worlds
 def block_in_same_world(function_index, head_index, tail_index):
-    last_line_status = all_functions[function_index][2][head_index+1][1]
-    for line_index in range(head_index+2,tail_index):
+    head_index += 1
+    last_line_status = all_functions[function_index][2][head_index][1]
+    # last_line_content = linecache.getline(source_file, all_functions[function_index][2][head_index][0])
+    while(1):
+        # if last_line_content.find('for') != -1 or last_line_status == 'x' or last_line_content.find('while') != -1 or last_line_content.find('if') != -1:
+        if last_line_status == 'b' or last_line_status == 'x':
+            head_index += 1
+        else:
+            last_line_status = all_functions[function_index][2][head_index][1]
+            break
+        if head_index == tail_index:
+            return True
+        last_line_status = all_functions[function_index][2][head_index][1]
+        # last_line_content = linecache.getline(source_file, all_functions[function_index][2][head_index][0])
+    for line_index in range(head_index+1,tail_index):
         current_line_status = all_functions[function_index][2][line_index][1]
-        if last_line_status != current_line_status and current_line_status != 'x':
+        # current_line_content = linecache.getline(source_file, all_functions[function_index][2][line_index][0])
+        # if last_line_status != current_line_status and current_line_status != 'x' and current_line_content.find('for') == -1 and current_line_content.find('while') == -1 and current_line_content.find('if') == -1:
+        if last_line_status != current_line_status and current_line_status != 'b' and current_line_status != 'x' :
             return False
-        last_line_status = current_line_status
-    if last_line_status == 'x':
-        return False
+        # if current_line_content.find('for') == -1 and current_line_content.find('while') == -1 and current_line_content.find('if') == -1:
+        if current_line_status != 'b' and current_line_status != 'x':
+            last_line_status = current_line_status
+    # if last_line_status == 'x':
+    #     return False
     return True
 
 
@@ -148,7 +165,7 @@ def extract_taint_line_nums(function_name, function_index):
                         original_var = variables[0]
                         for var in original_var:
                             var_name = var[1]
-                            if flow_line == var_name or flow_line.find(var_name+'[') != -1 or ('*' + flow_line.split('[')[0]) == var_name:
+                            if flow_line == var_name or flow_line.find(var_name+'[') != -1 or ('*' + flow_line.split('[')[0]) == var_name or var_name.find(flow_line.split('[')[0]) != -1:
                                 if var not in variables[1]:
                                     variables[1].append(var)
                                     break
@@ -174,9 +191,30 @@ def extract_taint_line_nums(function_name, function_index):
             if line_content.find(' = ') != -1:
                 assigning_argument_variable = line_content.split(' = ')[1].split(';')[0]
                 assigned_argument_variable = line_content.split(' = ')[0].strip()
-                if assigning_argument_variable.isalpha() and argument_variable_isTainted(function_index, assigning_argument_variable):
-                    if line_num not in line_numbers:
-                        line_numbers.append(line_num)
+                if not assigning_argument_variable.isdigit() and argument_variable_isTainted(function_index, assigning_argument_variable):
+                    # if line_num not in line_numbers:
+                    #     line_numbers.append(line_num)
+                    original_arg_index = arg_var_in_arguments_variables(function_index, 'arg', assigned_argument_variable)
+                    if original_arg_index != -1:
+                        original_arg_name = all_functions[function_index][5][0][original_arg_index][1]
+                        if original_arg_name.find('*') != -1 or original_arg_name.find('[') != -1:
+                            if assigned_argument_variable.find('*') != -1 or assigned_argument_variable.find('[') != -1:
+                                if line_num not in line_numbers:
+                                    line_numbers.append(line_num)
+                        else:
+                            if line_num not in line_numbers:
+                                line_numbers.append(line_num)
+                    else:
+                        original_var_index = arg_var_in_arguments_variables(function_index, 'var', assigned_argument_variable)
+                        if original_var_index != -1:
+                            original_var_name = all_functions[function_index][6][0][original_var_index][1]
+                            if original_var_name.find('*') != -1 or original_var_name.find('[') != -1:
+                                if assigned_argument_variable.find('*') != -1 or assigned_argument_variable.find('[') != -1:
+                                    if line_num not in line_numbers:
+                                        line_numbers.append(line_num)
+                            else:
+                                if line_num not in line_numbers:
+                                    line_numbers.append(line_num)
                     # check if the assigned argument/variable is in the tainted list already
                     if not argument_variable_isTainted(function_index, assigned_argument_variable):
                     # add the assigned argument/variable into the tainted list (i.e, taint_arg/taint_var)
@@ -189,6 +227,41 @@ def extract_taint_line_nums(function_name, function_index):
                             if original_var_index != -1:
                                 # append the new added variable type and name into all_functions
                                 all_functions[function_index][6][1].append(all_functions[function_index][6][0][original_var_index])
+
+    # double-check: according to the taint argument/variable list, add the line number if the assigned argument is tainted
+    # this "double-check" process is to ignore the lifespan of the tainted variable
+    for line_num_list in all_functions[function_index][2]:
+        line_num = line_num_list[0]
+        line_content = linecache.getline(source_file, line_num)
+        if line_content.find(' = ') != -1:
+            assigned_argument_variable = line_content.split(' = ')[0].strip()
+            if argument_variable_isTainted(function_index, assigned_argument_variable):
+                original_arg_index = arg_var_in_arguments_variables(function_index, 'arg', assigned_argument_variable)
+                if original_arg_index != -1:
+                    original_arg_name = all_functions[function_index][5][0][original_arg_index][1]
+                    if original_arg_name.find('*') != -1 or original_arg_name.find('[') != -1:
+                        if assigned_argument_variable.find('*') != -1 or assigned_argument_variable.find('[') != -1:
+                            if line_num not in line_numbers:
+                                line_numbers.append(line_num)
+                    else:
+                        if line_num not in line_numbers:
+                            line_numbers.append(line_num)
+                else:
+                    original_var_index = arg_var_in_arguments_variables(function_index, 'var', assigned_argument_variable)
+                    if original_var_index != -1:
+                        original_var_name = all_functions[function_index][6][0][original_var_index][1]
+                        if original_var_name.find('*') != -1 or original_var_name.find('[') != -1:
+                            if assigned_argument_variable.find('*') != -1 or assigned_argument_variable.find('[') != -1:
+                                if line_num not in line_numbers:
+                                    line_numbers.append(line_num)
+                        else:
+                            if line_num not in line_numbers:
+                                line_numbers.append(line_num)
+        elif line_content.find('return ') != -1:
+            returned_argument_variable = line_content.split('return ')[1].split(';')[0]
+            if not returned_argument_variable.isdigit() and argument_variable_isTainted(function_index, returned_argument_variable):
+                if line_num not in line_numbers:
+                    line_numbers.append(line_num)
     line_numbers.sort()
     return line_numbers
 

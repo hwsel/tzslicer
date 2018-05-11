@@ -12,8 +12,8 @@ int rgbToGray(int *rgb, int *gray, int buffer_size) {
     p_g = gray;
     for( i0 = 0; i0 < g_size; i0++ ) {
         *p_g = 0.30 * p_r[0] + 0.59 * p_r[1] + 0.11 * p_r[2];
-        p_r += 3;
-        p_g++;
+        p_r = p_r + 3;
+        p_g = p_g + 1;
     }
     return g_size;
 }
@@ -94,7 +94,7 @@ int convolution(int *X, int *Y, int c_size) {
     sum = 0;
     for(i0 = 0; i0 < c_size; i0++) {
         temp = c_size - i0 - 1;
-        sum += X[i0] * Y[temp];
+        sum = sum +  X[i0] * Y[temp];
     }
     return sum;
 }

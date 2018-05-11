@@ -22,14 +22,14 @@ int linreg(int n0, double x0[], double y0[], double *m0, double *b0, double *r0)
         sumy2 = 0.0;
 
        for ( i = 0; i < n0; i++ ) { 
-          sumx1 += x0[i];       
-          sumx2 += pow( x0[i] , 2 );  
-          sumxy += x0[i] * y0[i];
-          sumy1 += y0[i];      
-          sumy2 += pow( y0[i] , 2 ); 
+          sumx1 = sumx1 + x0[i];       
+          sumx2 = sumx2 + pow(x0[i],2);  
+          sumxy = sumxy + x0[i] * y0[i];
+          sumy1 = sumy1 + y0[i];      
+          sumy2 = sumy2 + pow(y0[i],2); 
           } 
 
-       denom = ( n0 * sumx2 - pow( sumx1 , 2 ) );
+       denom = ( n0 * sumx2 - pow(sumx1,2) );
        if ( denom == 0 ) {
            *m0 = 0;
            *b0 = 0;
@@ -38,8 +38,8 @@ int linreg(int n0, double x0[], double y0[], double *m0, double *b0, double *r0)
        else {
        	*m0 = ( n0 * sumxy  -  sumx1 * sumy1 ) / denom;
        	*b0 = ( sumy1 * sumx2  -  sumx1 * sumxy ) / denom;
-        temp_num = ( sumx2 - pow( sumx1 , 2 ) / n0 ) * ( sumy2 - pow( sumy1 , 2) / n0 );
-        *r0 = ( sumxy - sumx1 * sumy1 / n0 ) / sqrt( temp_num );
+        temp_num = ( sumx2 - pow(sumx1,2) / n0 ) * ( sumy2 - pow(sumy1,2) / n0 );
+        *r0 = ( sumxy - sumx1 * sumy1 / n0 ) / sqrt(temp_num);
        }
        return 0; 
     }

@@ -25,7 +25,7 @@ def TZb_load_functions_line_nums():
                         line_num_list[1] = function_status
                 else:
                     line_num_list[1] = 'x'
-    # add missing brackets
+    # add missing bracketsR
     add_missing_brackets()
     remove_empty_bracket_blocks()
     # print('TZb: ', all_functions)
@@ -174,6 +174,22 @@ def trim_unused_parameters_variables():
         function_index += 1
 
 
+# check if the variable or argument is tainted or not:
+def if_var_arg_is_taint(taint_arg_var_list,arg_var):
+    arg_var_name = arg_var[1]
+    for arg_var_list in taint_arg_var_list:
+        taint_arg_var_name = arg_var_list[1]
+        if arg_var_name == taint_arg_var_name:
+            return False
+        elif arg_var_name.find('[') != -1:
+            if taint_arg_var_name.find(arg_var_name[:arg_var_name.find('[')]) != -1:
+                return False
+        elif arg_var_name.find('*') != -1:
+            if taint_arg_var_name.find(arg_var_name[arg_var_name.find('*')+1:]) != -1:
+                return False
+    return True
+
+
 # obtain shared arguments and variables
 # input: function_index in all_functions
 # output: update shared_arg and shared_var
@@ -182,13 +198,26 @@ def update_shared_arg_var(function_index, list_type):
         list_index = 5
     elif list_type == 'var':
         list_index = 6
+    taint_arg_var_list = all_functions[function_index][list_index][1]
     secure_arg_var_list = all_functions[function_index][list_index][2]
     normal_arg_var_list = all_functions[function_index][list_index][3]
     # append empty list into shared_arg or shared_var
     all_functions[function_index][list_index].append([])
     for secure_arg_var in secure_arg_var_list:
-        if secure_arg_var in normal_arg_var_list:
+        if secure_arg_var in normal_arg_var_list and if_var_arg_is_taint(taint_arg_var_list,secure_arg_var):
             all_functions[function_index][list_index][4].append(secure_arg_var)
+        else:
+            secure_arg_var_name = secure_arg_var[1]
+            if secure_arg_var_name.find('*') != -1:
+                for normal_arg_var in normal_arg_var_list:
+                    normal_arg_var_name = normal_arg_var[1]
+                    if normal_arg_var_name.find(secure_arg_var_name[1:]) != -1:
+                        all_functions[function_index][list_index][4].append(secure_arg_var)
+            elif secure_arg_var_name.find('[') != -1:
+                for normal_arg_var in normal_arg_var_list:
+                    normal_arg_var_name = normal_arg_var[1]
+                    if normal_arg_var_name.find(secure_arg_var_name[:secure_arg_var_name.find('[')]) != -1:
+                        all_functions[function_index][list_index][4].append(secure_arg_var)
     remove_iterator_in_shared_list(function_index, list_index)
 
 
@@ -257,17 +286,21 @@ def append_arg_var(function_index, function_status, line_content, function_type)
             line_content_element_1 = line_content_element.split('[')[0]
             line_content_element_2 = line_content_element.split('[')[1].split(']')[0]
             if line_content_element_2.isdigit():
-                append_to_list(function_index, arg_var_list_index, line_content_element)
+                if line_content_element_1.find('(') == -1:
+                    append_to_list(function_index, arg_var_list_index, line_content_element)
             else:
+                if line_content_element_2:
                 # append_to_list(function_index, arg_var_list_index, line_content_element_1)
-                append_to_list(function_index, arg_var_list_index, line_content_element_2)
-                append_to_list(function_index, arg_var_list_index, line_content_element)
+                    append_to_list(function_index, arg_var_list_index, line_content_element_2)
+                    append_to_list(function_index, arg_var_list_index, line_content_element)
+                else:
+                    append_to_list(function_index, arg_var_list_index, line_content_element_1)
     if function_status == 'b' and function_type == 's':
         if line_content.find('for') != -1:
             extract_iterator(function_index, line_content)
 
 
-# append to list
+# append to list for variables and arguments
 # input: function_index, arg_var_list_index, line_content_element
 # output: appending
 def append_to_list(function_index, arg_var_list_index, line_content_element):
@@ -278,15 +311,22 @@ def append_to_list(function_index, arg_var_list_index, line_content_element):
                 if line_content_element.isalpha() or line_content_element.find('_') != -1 or \
                                 line_content_element.find('[') != -1 or \
                         (line_content_element.find('*') != -1 and line_content_element != '*'):
+
                     all_functions[function_index][5][arg_var_list_index].append([all_functions[function_index][5][0][original_arguments_index][0],line_content_element])
         else:
             original_variables_index = arg_var_in_arguments_variables(function_index, 'var', line_content_element)
             if original_variables_index != -1:
                 if all_functions[function_index][6][0][original_variables_index] not in all_functions[function_index][6][arg_var_list_index]:
-                    if line_content_element.isalpha() or line_content_element.find('_') != -1 or \
-                                    line_content_element.find('[') != -1 or \
-                        (line_content_element.find('*') != -1 and line_content_element != '*'):
-                        all_functions[function_index][6][arg_var_list_index].append([all_functions[function_index][6][0][original_variables_index][0],line_content_element])
+                    # if line_content_element.find('+') == -1 or line_content_element.find('-') == -1 or line_content_element.find('=') == -1 or line_content_element.find('_') != -1 or \
+                    #                 line_content_element.find('[') != -1 or \
+                    #     (line_content_element.find('*') != -1 and line_content_element != '*'):
+                    if line_content_element.find('(') == -1 and line_content_element.find(')') == -1 \
+                            and line_content_element.find('+') == -1 and line_content_element.find('-') == -1 \
+                            and line_content_element.find('=') == -1 and line_content_element != '*':
+                        if line_content_element != ']':
+                            if [all_functions[function_index][6][0][original_variables_index][0],line_content_element] not in all_functions[function_index][6][arg_var_list_index]:
+                                all_functions[function_index][6][arg_var_list_index].append([all_functions[function_index][6][0][original_variables_index][0],line_content_element])
+    # print(all_functions[function_index][6][arg_var_list_index])
 
 
 # extract iterator in current line

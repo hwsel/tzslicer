@@ -11,7 +11,7 @@ int getSBoxValue(int num) {
   return sbox[num];
 }
 
-void KeyExpansion(int *Key, int Nr, int Nb, int *RoundKey) {
+void KeyExpansion(int Key[16], int Nr, int Nb, int Round[176]) {
   int i1;
   int k1;
   int tempa[4];
@@ -21,17 +21,17 @@ void KeyExpansion(int *Key, int Nr, int Nb, int *RoundKey) {
   Nk = 4;
 
   for ( i1 = 0; i1 < Nk; i1++ ) {
-    RoundKey[ ( i1 * 4 ) + 0 ] = Key[ ( i1 * 4 ) + 0 ];
-    RoundKey[ ( i1 * 4 ) + 1 ] = Key[ ( i1 * 4 ) + 1 ];
-    RoundKey[ ( i1 * 4 ) + 2 ] = Key[ ( i1 * 4 ) + 2 ];
-    RoundKey[ ( i1 * 4 ) + 3 ] = Key[ ( i1 * 4 ) + 3 ];
+    Round[ ( i1 * 4 ) + 0 ] = Key[ ( i1 * 4 ) + 0 ];
+    Round[ ( i1 * 4 ) + 1 ] = Key[ ( i1 * 4 ) + 1 ];
+    Round[ ( i1 * 4 ) + 2 ] = Key[ ( i1 * 4 ) + 2 ];
+    Round[ ( i1 * 4 ) + 3 ] = Key[ ( i1 * 4 ) + 3 ];
   }
 
   for ( ; i1 < Nb * ( Nr + 1 ); i1++ ) {
-      tempa[0] = RoundKey[ ( i1 - 1 ) * 4 + 0 ];
-      tempa[1] = RoundKey[ ( i1 - 1 ) * 4 + 1 ];
-      tempa[2] = RoundKey[ ( i1 - 1 ) * 4 + 2 ];
-      tempa[3] = RoundKey[ ( i1 - 1 ) * 4 + 3 ];
+      tempa[0] = Round[ ( i1 - 1 ) * 4 + 0 ];
+      tempa[1] = Round[ ( i1 - 1 ) * 4 + 1 ];
+      tempa[2] = Round[ ( i1 - 1 ) * 4 + 2 ];
+      tempa[3] = Round[ ( i1 - 1 ) * 4 + 3 ];
 
     if ( i1 % Nk == 0 ) {
         k1 = tempa[0];
@@ -48,14 +48,14 @@ void KeyExpansion(int *Key, int Nr, int Nb, int *RoundKey) {
       tempa[0] =  tempa[0] ^ Rcon[ i1 / Nk ];
     }
 
-    RoundKey[ i1 * 4 + 0 ] = RoundKey[ ( i1 - Nk ) * 4 + 0 ] ^ tempa[0];
-    RoundKey[ i1 * 4 + 1 ] = RoundKey[ ( i1 - Nk ) * 4 + 1 ] ^ tempa[1];
-    RoundKey[ i1 * 4 + 2 ] = RoundKey[ ( i1 - Nk ) * 4 + 2 ] ^ tempa[2];
-    RoundKey[ i1 * 4 + 3 ] = RoundKey[ ( i1 - Nk ) * 4 + 3 ] ^ tempa[3];
+    Round[ i1 * 4 + 0 ] = Round[ ( i1 - Nk ) * 4 + 0 ] ^ tempa[0];
+    Round[ i1 * 4 + 1 ] = Round[ ( i1 - Nk ) * 4 + 1 ] ^ tempa[1];
+    Round[ i1 * 4 + 2 ] = Round[ ( i1 - Nk ) * 4 + 2 ] ^ tempa[2];
+    Round[ i1 * 4 + 3 ] = Round[ ( i1 - Nk ) * 4 + 3 ] ^ tempa[3];
   }
 }
 
-void AES_CBC_encrypt_buffer(int *output, int *input, int length, int *key, int *iv) {
+void AES_CBC_encrypt_buffer(int output[64], int input[64], int length, int key[16], int iv[16]) {
   int i1;
   int extra;
   int *Iv;
@@ -65,7 +65,7 @@ void AES_CBC_encrypt_buffer(int *output, int *input, int length, int *key, int *
   int *state;
   int Nr;
   int Nb;
-  int RoundKey[176];
+  int Round[176];
 
   Nb = 4;
   Nr = 10;
@@ -75,13 +75,13 @@ void AES_CBC_encrypt_buffer(int *output, int *input, int length, int *key, int *
 
   if ( 0 != key ) {
     Key = key;
-    KeyExpansion(Key,Nr,Nb,RoundKey);
+    KeyExpansion(Key,Nr,Nb,Round);
   }
 
 }
 
-void test_encrypt_cbc(int *key, int *in) {
-  int iv[]  = { 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f };
+void test_encrypt_cbc(int key[16], int in[64]) {
+  int iv[16]  = { 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f };
 
   int buffer[64];
 
@@ -90,9 +90,9 @@ void test_encrypt_cbc(int *key, int *in) {
 }
 
 void main(int argc, char **argv) {
-    int key[] = { 0x2b, 0x7e, 0x15, 0x16, 0x28, 0xae, 0xd2, 0xa6, 0xab, 0xf7, 0x15, 0x88, 0x09, 0xcf, 0x4f, 0x3c };
+    int key[16] = { 0x2b, 0x7e, 0x15, 0x16, 0x28, 0xae, 0xd2, 0xa6, 0xab, 0xf7, 0x15, 0x88, 0x09, 0xcf, 0x4f, 0x3c };
 
-    int plain[]  = { 0x6b, 0xc1, 0xbe, 0xe2, 0x2e, 0x40, 0x9f, 0x96, 0xe9, 0x3d, 0x7e, 0x11, 0x73, 0x93, 0x17, 0x2a,0xae, 0x2d, 0x8a, 0x57, 0x1e, 0x03, 0xac, 0x9c, 0x9e, 0xb7, 0x6f, 0xac, 0x45, 0xaf, 0x8e, 0x51,0x30, 0xc8, 0x1c, 0x46, 0xa3, 0x5c, 0xe4, 0x11, 0xe5, 0xfb, 0xc1, 0x19, 0x1a, 0x0a, 0x52, 0xef,0xf6, 0x9f, 0x24, 0x45, 0xdf, 0x4f, 0x9b, 0x17, 0xad, 0x2b, 0x41, 0x7b, 0xe6, 0x6c, 0x37, 0x10 };
+    int plain[64]  = { 0x6b, 0xc1, 0xbe, 0xe2, 0x2e, 0x40, 0x9f, 0x96, 0xe9, 0x3d, 0x7e, 0x11, 0x73, 0x93, 0x17, 0x2a,0xae, 0x2d, 0x8a, 0x57, 0x1e, 0x03, 0xac, 0x9c, 0x9e, 0xb7, 0x6f, 0xac, 0x45, 0xaf, 0x8e, 0x51,0x30, 0xc8, 0x1c, 0x46, 0xa3, 0x5c, 0xe4, 0x11, 0xe5, 0xfb, 0xc1, 0x19, 0x1a, 0x0a, 0x52, 0xef,0xf6, 0x9f, 0x24, 0x45, 0xdf, 0x4f, 0x9b, 0x17, 0xad, 0x2b, 0x41, 0x7b, 0xe6, 0x6c, 0x37, 0x10 };
 
     TNT_MAKE_MEM_TAINTED(key, sizeof(key));
     TNT_START_PRINT();

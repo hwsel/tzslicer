@@ -31,6 +31,8 @@ subfunction_in_secureMain = [] # parentFunction_index, subfunctionCall_lineNum, 
 all_secure_shared_data = []
 all_normal_shared_data = []
 
+shared_address_for_pointer = []
+
 # loop_remainder = []
 
 # write the contents of the taintgrind log to a global list called taintAnalysis_content
@@ -195,7 +197,7 @@ def extract_loop_line_range(function_line_nums):
 # output: all_functions -> [[function_name, function_status, [[line_num, line_status], ...],
 # [[if_head, if_tail, else_head, else_tail], ...], [[loop_head, loop_tail], ...],
 # [[[original_arg_type, original_arg_name], ...]], [[original_var_type, original_var_name], ...]], ...]
-def extract_arguments_variables_subfunctions():
+def extract_arguments_variables_for_functions():
     function_index = 0
     for function in all_functions:
         function_head = function[2][0][0]
@@ -213,7 +215,11 @@ def extract_arguments_variables_subfunctions():
         for argument_list in function_definition:
             argument = [argument_list.split(' ')[0]]
             argument.append(argument_list.split(' ')[1])
-            original_arg.append(argument)
+            if argument[1].find('[') != -1 and argument[1].find(']') == -1:
+                print('testing needed')
+                original_arg.append([argument[0],argument[1][:argument[1].find('[')]])
+            else:
+                original_arg.append(argument)
         function[5].append(original_arg)
 
         # add variables into all_functions
@@ -223,12 +229,18 @@ def extract_arguments_variables_subfunctions():
             if current_line_list[0] == 'int' or current_line_list[0] == 'double' or current_line_list[0] == 'char':
                 variable = [current_line_list[0]]
                 variable.append(current_line_list[1].split(';')[0])
-                original_var.append(variable)
+                if variable[1].find('[') != -1 and variable[1].find(']') == -1:
+                    print('testing needed')
+                    original_var.append([variable[0],variable[1][:variable[1].find('[')]])
+                else:
+                    original_var.append(variable)
+        function[6].append(original_var)
 
-            # add subfunction call into all_functions
+        # add subfunction call into all_functions
+        for line_index in range(function_head+1,function_tail):
+            current_line_list = linecache.getline(source_file, line_index).strip().split(' ')
             append_subfunction_call(function_index, current_line_list, line_index)
 
-        function[6].append(original_var)
         function_index += 1
     # print('TZm: ', all_functions)
 
@@ -245,10 +257,10 @@ def append_subfunction_call(function_index, line_list, line_num):
             if subfunction_append_index == -1:
                 all_functions[function_index][7].append([subfunction_name])
                 all_functions[function_index][7][-1].append([line_num])
-                all_functions[function_index][7][-1].append([extract_subfunction_arguments(line_element)])
+                all_functions[function_index][7][-1].append([extract_subfunction_arguments(function_index, line_element)])
             else:
                 all_functions[function_index][7][subfunction_append_index][1].append(line_num)
-                all_functions[function_index][7][subfunction_append_index][2].append(extract_subfunction_arguments(line_element))
+                all_functions[function_index][7][subfunction_append_index][2].append(extract_subfunction_arguments(function_index, line_element))
 
 
 # check if there is a subfunction call in the line element (the line element is splited by space in a certain line)
@@ -280,12 +292,51 @@ def check_if_subfunction_exist(function_index, subfunction_index):
 # obtain the called arguments for the certain subfunction
 # input: subfunction_call
 # output: argument list
-def extract_subfunction_arguments(subfunction_call):
+def extract_subfunction_arguments(function_index, subfunction_call):
     arguments = []
     called_arguments = subfunction_call[subfunction_call.find('(')+1:subfunction_call.find(')')].split(',')
-    for called_arg in called_arguments:
-        arguments.append(called_arg)
+    for arg in called_arguments:
+        if arg.find('*') == -1 and arg.find('[') == -1 and not arg.isdigit():
+            verified_arg = check_if_arg_is_array(function_index, arg)
+            if verified_arg != -1:
+                arg = verified_arg
+        arguments.append(arg)
+
+    # for called_arg in called_arguments:
+    #     arguments.append(called_arg)
     return arguments
+
+
+
+# check if the subfunction argument is array or pointer or regular variable
+def check_if_arg_is_array(function_index, arg):
+    # track the variable list
+    for variable_list in all_functions[function_index][6][0]:
+        variable_name = variable_list[1]
+        if variable_name.find(arg) != -1:
+            if variable_name.find('[') != -1:
+                return variable_name
+            elif variable_name.find('*') != -1:
+                for line_list in all_functions[function_index][2][1:-1]:
+                    line_num = line_list[0]
+                    line_content = linecache.getline(source_file, line_num)
+                    if not is_var_definition(line_content):
+                        if line_content.find(arg + ' = ') != -1:
+                            assigning_var_name = line_content.strip()[line_content.strip().find('=')+2:-1]
+                            verified_assigning_var_name = check_if_arg_is_array(function_index, assigning_var_name)
+                            if verified_assigning_var_name != -1:
+                                if verified_assigning_var_name.find('*') != -1:
+                                    return '*' + arg
+                                elif verified_assigning_var_name.find('[') != -1:
+                                    return arg + verified_assigning_var_name[verified_assigning_var_name.find('['):]
+
+    # check if the arg is in the function argument list and if it is a pointer
+    for argument_list in all_functions[function_index][5][0]:
+        argument_name = argument_list[1]
+        if argument_name.find(arg) != -1:
+            if argument_name.find('[') != -1 or argument_name.find('*') != -1:
+                return argument_name
+    return -1
 
 
 # extract the subfunction index in subfunction_call list
@@ -306,13 +357,32 @@ def shared_data_statement(name_list, type_list, line_num):
     types = ''
     names = ''
     # print(name_list)
-    for type in type_list:
-        types += ('"' + type + '",')
+    # for type in type_list:
+    #     types += ('"' + type + '",')
+    # for name in name_list:
+    #     names += (name + ',')
+    name_index = 0
     for name in name_list:
-        names += (name + ',')
+        if name.find('*') != -1:
+            names += (name[1:] + ',')
+            types += ('"' + type_list[name_index] + '",')
+        elif name.find('[') != -1:
+            array_size = name[name.find('[')+1:name.find(']')]
+            array_name = name[:name.find('[')]
+            if array_size.isdigit():
+                for i in range(int(array_size)):
+                    names += (array_name + '+' + str(i) + ',')
+                    types += ('"' + type_list[name_index] + '",')
+            else:
+                print('have NOT deal with when the array size is not a digit yet')
+        else:
+            names += ('&' + name + ',')
+            types += ('"' + type_list[name_index] + '",')
+        name_index += 1
     return ('void *' + 'sharedData_' + line_num + '[] = {' + names[:-1] + '};\n') \
            + ('char *' + 'sharedType_' + line_num + '[] = {' + types[:-1] + '};\n') \
-           + ('push(' + 'sharedData_' + line_num + ',' + 'sharedType_' + line_num + ');\n')
+           + ('push_smc(' + 'sharedData_' + line_num + ',' + 'sharedType_' + line_num + ',sizeof(' + 'sharedData_' + line_num + ')/sizeof(*' + 'sharedData_' + line_num + '));\n')
+
 
 def subfunction_call_content(parentFunction_index, name_list, type_list, line_num):
     define_statements = ''
@@ -321,7 +391,9 @@ def subfunction_call_content(parentFunction_index, name_list, type_list, line_nu
         for parent_line_list in all_functions[parentFunction_index][2]:
             parent_line_num = parent_line_list[0]
             parent_line_content = linecache.getline(source_file, parent_line_num)
-            if parent_line_content.find(name) != -1:
+            if parent_line_content.find(name) != -1 or \
+                    (name.find('[') != -1 and parent_line_content.find(name[:name.find('[')]) != -1) or \
+                    (name.find('*') != -1 and parent_line_content.find(name[1:]) != -1):
                 if parent_line_list_index == 0:
                     argument_define = parent_line_content.strip()[parent_line_content.find('(')+1:parent_line_content.find(')')]
                     print('testing needed when the defining statement is in the function argument definition')
@@ -332,13 +404,31 @@ def subfunction_call_content(parentFunction_index, name_list, type_list, line_nu
 
     types = ''
     names = ''
-    for type in type_list:
-        types += ('"' + type + '",')
+
+    name_index = 0
     for name in name_list:
-        names += (name + ',')
+        if name.find('*') != -1:
+            names += (name[1:] + ',')
+            types += ('"' + type_list[name_index] + '",')
+        elif name.find('[') != -1:
+            array_size = name[name.find('[')+1:name.find(']')]
+            array_name = name[:name.find('[')]
+            if array_size.isdigit():
+                for i in range(int(array_size)):
+                    names += (array_name + '+' + str(i) + ',')
+                    types += ('"' + type_list[name_index] + '",')
+            else:
+                print('have NOT deal with when the array size is not a digit yet')
+        else:
+            names += ('&' + name + ',')
+            types += ('"' + type_list[name_index] + '",')
+        name_index += 1
+    # for type in type_list:
+    #     types += ('"' + type + '",')
+    # print(define_statements)
     return define_statements + ('void *' + 'sharedData_' + line_num + '[] = {' + names[:-1] + '};\n') \
            + ('char *' + 'sharedType_' + line_num + '[] = {' + types[:-1] + '};\n') \
-           + ('pull(' + 'sharedData_' + line_num + ',' + 'sharedType_' + line_num + ');\n')
+           + ('pull(' + 'sharedData_' + line_num + ',' + 'sharedType_' + line_num  + ',sizeof(' + 'sharedData_' + line_num + ')/sizeof(*' + 'sharedData_' + line_num + ')' + ');\nasm volatile(\"smc #0\\n\\t\");\n')
 
 
 
@@ -352,30 +442,60 @@ def parse():
     global subfunction_in_secureMain
 
     secure_functions_content = load_functions('secure')
-    final_line_count(secure_functions_content)
+    # final_line_count(secure_functions_content)
     normal_functions_content = load_functions('normal')
 
-    if (sys.argv[2] == '0' and sys.argv[3] == '0') or (sys.argv[2] == '1' and sys.argv[3] == '0'):
-        for subfunction in subfunction_in_secureMain:
-            parentFunction_index = subfunction[0]
-            parentFunction_name = all_functions[parentFunction_index][0]
-            for normal_func_content_list in normal_functions_content:
-                normal_func_name = normal_func_content_list[0]
-                if normal_func_name == parentFunction_name:
-                    for line_list in normal_func_content_list[1]:
-                        line_num = line_list[1]
-                        if int(line_num) in subfunction[1]:
-                            index = subfunction[1].index(int(line_num))
-                            # update secure_main
-                            if sys.argv[2] == '1' and sys.argv[3] == '1':
-                                secure_main.append(subfunction_call_content(parentFunction_index, subfunction[2][index], subfunction[3][index], line_num))
-                            # secure_main.append(line_list[0])
-                            # update normal function content
-                            if sys.argv[2] == '1' and sys.argv[3] == '1':
-                                line_list[0] = shared_data_statement(subfunction[2][index], subfunction[3][index], line_num) + "\tasm volatile(\"smc #0\\n\\t\");\n"
+    # if (sys.argv[2] == '0' and sys.argv[3] == '0') or (sys.argv[2] == '1' and sys.argv[3] == '0'):
+    #     for subfunction in subfunction_in_secureMain:
+    #         parentFunction_index = subfunction[0]
+    #         parentFunction_name = all_functions[parentFunction_index][0]
+    #         for normal_func_content_list in normal_functions_content:
+    #             normal_func_name = normal_func_content_list[0]
+    #             if normal_func_name == parentFunction_name:
+    #                 for line_list in normal_func_content_list[1]:
+    #                     line_num = line_list[1]
+    #                     if int(line_num) in subfunction[1]:
+    #                         index = subfunction[1].index(int(line_num))
+    #                         # update secure_main
+    #                         if sys.argv[2] == '1' and sys.argv[3] == '1':
+    #                             secure_main.append(subfunction_call_content(parentFunction_index, subfunction[2][index], subfunction[3][index], line_num))
+    #                         # secure_main.append(line_list[0])
+    #                         # update normal function content
+    #                         if sys.argv[2] == '1' and sys.argv[3] == '1':
+    #                             line_list[0] = shared_data_statement(subfunction[2][index], subfunction[3][index], line_num) + "\tasm volatile(\"smc #0\\n\\t\");\n"
+
+    # subfunction_in_secureMain: [parentFunction_index, subfunctionCall_lineNum, argument_type, argument_name]
+    # print(subfunction_in_secureMain)
+    for subfunction in subfunction_in_secureMain:
+        parentFunction_index = subfunction[0]
+        parentFunction_name = all_functions[parentFunction_index][0]
+        for normal_func_content_list in normal_functions_content:
+            normal_func_name = normal_func_content_list[0]
+            if normal_func_name == parentFunction_name:
+                for line_list in normal_func_content_list[1]:
+                    line_num = line_list[1]
+                    line_content = line_list[0]
+                    if int(line_num) in subfunction[1]:
+                        index = subfunction[1].index(int(line_num))
+                        # update secure_main
+
+                        # if sys.argv[2] == '1' and sys.argv[3] == '1':
+                        # secure_main.append(subfunction_call_content(parentFunction_index, subfunction[2][index], subfunction[3][index], line_num))
+                        # secure_main.append(line_list[0])
+                        # update normal function content
+                        # if sys.argv[2] == '1' and sys.argv[3] == '1':
+                        secure_main.append(subfunction_call_content(parentFunction_index, subfunction[2][index], subfunction[3][index], line_num))
+                        secure_main.append(line_content)
+                        if sys.argv[3] == '0':
+                            line_list[0] = shared_data_statement(subfunction[2][index], subfunction[3][index], line_num)
+                        else:
+                            line_list[0] = shared_data_statement(subfunction[2][index], subfunction[3][index], line_num) + line_list[0]
 
     # scheduling: renaming
     # check if we need renaming
+    secure_assigning_var_list = []
+    normal_assigning_var_list = []
+
     if sys.argv[2] == '1' and sys.argv[3] == '1' and sys.argv[4] != '0':
         for function in all_functions:
             function_name = function[0]
@@ -385,8 +505,9 @@ def parse():
                 loop_statements = function[4]
                 shared_arguments = function[5][4]
                 shared_variables = function[6][4]
+                iterator_list = function[6][5]
                 for loop_state in loop_statements:
-                    rename_var_list = check_renaming_need(loop_state, line_numbers, shared_arguments, shared_variables)
+                    rename_var_list = check_renaming_need(loop_state, line_numbers, shared_arguments, shared_variables, iterator_list)
                     if rename_var_list:
                         loop_head = loop_state[0]
                         loop_tail = loop_state[1]
@@ -398,11 +519,32 @@ def parse():
                             line_content = linecache.getline(source_file, line_num)
                             for rename_var in rename_var_list:
                                 if line_content.find(rename_var) != -1:
-                                    rename_var_in_line(function_name, line_num, line_status, rename_var, sys.argv[4])
-                        # append statements for assigning the renamed variable to the orignal variable
-                        append_updated_assignment(function_name, line_numbers[loop_tail_index][0], 'n', rename_var_list, sys.argv[4])
-                        append_updated_assignment(function_name, line_numbers[loop_tail_index][0], 's', rename_var_list, sys.argv[4])
+                                    assigning_var_list = rename_var_in_line(function_name, line_num, line_status, rename_var, sys.argv[4], iterator_list)
+                                    # append assigned variable to a certain list
+                                    if line_status == 's':
+                                        for assigning_var in assigning_var_list:
+                                            if assigning_var not in secure_assigning_var_list:
+                                                secure_assigning_var_list.append(assigning_var)
+                                    elif line_status == 'n':
+                                        for assigning_var in assigning_var_list:
+                                            if assigning_var not in normal_assigning_var_list:
+                                                normal_assigning_var_list.append(assigning_var)
+                        # append statements for assigning the renamed variable to the orignal variable within the loop
 
+                        append_updated_assignment(function_name, line_numbers[loop_tail_index][0], 'n', rename_var_list, sys.argv[4], shared_arguments, shared_variables, normal_assigning_var_list)
+                        append_updated_assignment(function_name, line_numbers[loop_tail_index][0], 's', rename_var_list, sys.argv[4], shared_arguments, shared_variables, secure_assigning_var_list)
+
+
+    # modify the variable definition statement for storing the shared address
+    if sys.argv[2] == '1' and sys.argv[3] == '1':
+        modify_variable_definition_for_shared_address('n')
+        modify_variable_definition_for_shared_address('s')
+
+
+
+    final_line_count(secure_functions_content)
+
+    # main function process
     for function in normal_functions_content:
         if function[0] == "main":
             # evaluating the main
@@ -495,15 +637,59 @@ def parse():
         normal_main.append(line)
 
 
+# modify the variable definition statement for storing the shared address
+def modify_variable_definition_for_shared_address(function_status):
+    global shared_address_for_pointer
+    if function_status == 's':
+        functions_content = secure_functions_content
+        if sys.argv[2] == '1' and sys.argv[3] == '1' and sys.argv[4] != '0':
+            func_content_list_index = 1
+            if function_status == 's':
+                func_content_list_index = 1
+            for func_content_list in functions_content:
+                if shared_address_for_pointer[func_content_list_index] != []:
+                    for shared_address_variable in shared_address_for_pointer[func_content_list_index]:
+                        line_list_index = 0
+                        # print(func_content_list[1])
+                        for line_list in func_content_list[1]:
+                            line_content = line_list[0]
+                            # print(line_content)
+                            if line_content.find(shared_address_variable) != -1 and line_content.find(shared_address_variable + '_') == -1:
+                                variable_type = line_content[:line_content.find(shared_address_variable)]
+                            if line_content.find(shared_address_variable + '_') != -1 and line_content.find('_sharedData') == -1 and is_var_definition(line_content):
+                                func_content_list[1][line_list_index][0] = variable_type + line_content[line_content.find(shared_address_variable):]
+                                # print(line_content)
+                                if str(int(line_content[line_content.find(shared_address_variable)+len(shared_address_variable)+1:line_content.find(' =')])+1) == sys.argv[4]:
+                                    break
+                            line_list_index += 1
+                func_content_list_index += 1
+    elif function_status == 'n':
+        functions_content = normal_functions_content
+        func_content_list_index = 0
+        for func_content_list in functions_content:
+            if shared_address_for_pointer[func_content_list_index]:
+                for shared_address_variable in shared_address_for_pointer[func_content_list_index]:
+                    line_list_index = 0
+                    for line_list in func_content_list[1]:
+                        line_content = line_list[0]
+                        if line_content.find(shared_address_variable) != -1:
+                            func_content_list[1][line_list_index][0] = 'unsigned int ' + line_content[line_content.find(shared_address_variable):]
+                            break
+                        line_list_index += 1
+            func_content_list_index += 1
 
-def append_updated_assignment(function_name, loop_tail, line_status, rename_var_list, unrolling_times):
+
+# append renaming assignment from renamed variable to original variable
+def append_updated_assignment(function_name, loop_tail, line_status, rename_var_list, unrolling_times, shared_arguments, shared_variables, assigning_var_list):
     if line_status == 's':
         functions_content = secure_functions_content
     elif line_status == 'n':
         functions_content = normal_functions_content
+    func_content_list_index = 0
     for func_content_list in functions_content:
         current_function_name = func_content_list[0]
         if current_function_name == function_name:
+            function_index = func_content_list_index
             func_content = func_content_list[1]
             line_content_list_index = 0
             while(1):
@@ -513,22 +699,74 @@ def append_updated_assignment(function_name, loop_tail, line_status, rename_var_
                     for rename_var in rename_var_list[::-1]: # reversely insert the new assignment for the renamed variable
                         add_line = rename_var + ' = ' + rename_var + '_' + str(int(unrolling_times)-1) + ';\n'
                         added_line_label = rename_var + '_assign'
-                        func_content.insert(line_content_list_index, [add_line, added_line_label])
+                        if rename_var in assigning_var_list:
+                            func_content.insert(line_content_list_index, [add_line, added_line_label])
+                        else:
+                            for assigning_var in assigning_var_list:
+                                if assigning_var.find('[') != -1 and assigning_var.find(rename_var) != -1:
+                                    add_line = assigning_var + ' = ' + assigning_var[:assigning_var.find('[')+1] + rename_var + '_' + str(int(unrolling_times)-1) + '];\n'
+                                    func_content.insert(line_content_list_index, [add_line, added_line_label])
+                        # if check_if_renameVar_is_shared(rename_var,shared_arguments,shared_variables):
+                        #     if line_status == 'n':
+                        #         func_content.insert(line_content_list_index, [add_line, added_line_label])
+                        # else:
+                        #     if line_status == 's':
+                        #         func_content.insert(line_content_list_index, [add_line, added_line_label])
                     break
                 line_content_list_index += 1
+        func_content_list_index += 1
+
+
+# check if the rename var is shared data
+def check_if_renameVar_is_shared(rename_var,shared_arguments,shared_variables):
+    for arg in shared_arguments:
+        arg_name = arg[1]
+        if rename_var == arg_name:
+            return True
+    for var in shared_variables:
+        var_name = var[1]
+        if rename_var == var_name:
+            return True
+    return False
+
+
+# check if the line content contains '[' + iterator
+def check_if_iterator(line_partial_content, iterator_list):
+    for iterator in iterator_list:
+        if line_partial_content[len(line_partial_content)-len(iterator):] == iterator:
+            return True
+    return False
+
+
+# check if the line content contains assign_var
+def check_if_assiged_var(line_partial_content, assigned_var):
+    if assigned_var.find('[') != -1:
+        if line_partial_content[len(line_partial_content)-len(assigned_var[:-1]):] == assigned_var[:-1]:
+            return True
+        else:
+            return False
+    else:
+        if line_partial_content[len(line_partial_content)-len(assigned_var):] == assigned_var:
+            return True
+        else:
+            return False
 
 
 # rename variable
 # input: function_name, line_num, line_status, rename_var
 # output: rename the variable in the current line
-def rename_var_in_line(function_name, line_num, line_status, rename_var, unrolling_times):
+def rename_var_in_line(function_name, line_num, line_status, rename_var, unrolling_times, iterator_list):
+    assigning_var_list = []
     if line_status == 's':
         functions_content = secure_functions_content
+        func_content_list_index = 1
     elif line_status == 'n':
         functions_content = normal_functions_content
+        func_content_list_index = 0
     for func_content_list in functions_content:
         current_function_name = func_content_list[0]
         if current_function_name == function_name:
+            function_index = func_content_list_index
             func_content = func_content_list[1]
             line_content_list_index = 0
             unrolling = 1
@@ -545,19 +783,39 @@ def rename_var_in_line(function_name, line_num, line_status, rename_var, unrolli
                         add_line = ''
                         begin_index = 0
                         equal_index = line_content.find('=')
+                        assigned_var = line_content[:line_content.find(' = ')].strip()
+                        # extract the assigning variables
+                        assigning_vars = extract_assigning_variables(line_content[line_content.find(' = ')+2:])
+                        for assigning_var in assigning_vars:
+                            if assigning_var not in assigning_var_list and assigning_var == assigned_var:
+                                assigning_var_list.append(assigning_var)
                         for rename_var_index in rename_var_index_list:
                             # end_index = rename_var_index + len(rename_var)
                             # add_line += line_content[begin_index:end_index] + rename_rule
                             # begin_index = end_index
                             end_index = rename_var_index + len(rename_var)
                             if rename_var_index < equal_index:
-                                add_line += line_content[begin_index:end_index] + rename_rule
-                            else:
-                                if rename_rule == str('_1'):
-                                    add_line += line_content[begin_index:end_index]
+                                # add_line += line_content[begin_index:end_index] + rename_rule
+                                if line_content[begin_index:end_index].find('[') == -1:
+                                    add_line += line_content[begin_index:end_index] + rename_rule
                                 else:
-                                    previous_rename_rule = '_' + str(int(rename_rule[1:]) - 1)
-                                    add_line += line_content[begin_index:end_index] + previous_rename_rule
+                                    if not check_if_iterator(line_content[begin_index:end_index], iterator_list):
+                                        add_line += line_content[begin_index:end_index] + rename_rule
+                                    else:
+                                        add_line += line_content[begin_index:end_index]
+                            else:
+                                # if line_content[begin_index:end_index].find('[') == -1:
+                                if check_if_assiged_var(line_content[begin_index:end_index], assigned_var):
+                                    if rename_rule == str('_1'):
+                                        add_line += line_content[begin_index:end_index]
+                                    else:
+                                        previous_rename_rule = '_' + str(int(rename_rule[1:]) - 1)
+                                        add_line += line_content[begin_index:end_index] + previous_rename_rule
+                                else:
+                                    if not check_if_iterator(line_content[begin_index:end_index], iterator_list):
+                                        add_line += line_content[begin_index:end_index] + rename_rule
+                                    else:
+                                        add_line += line_content[begin_index:end_index]
                             begin_index = end_index
                         add_line += line_content[end_index:]
                         func_content.insert(line_content_list_index+1, [add_line, line_label])
@@ -566,16 +824,162 @@ def rename_var_in_line(function_name, line_num, line_status, rename_var, unrolli
                 if unrolling == int(unrolling_times):
                     break
                 line_content_list_index += 1
+        func_content_list_index += 1
 
+
+    def_line_index,sd_line_index = extract_var_def_sd(func_content, function_name)
+    find_var_in_shared,var,var_type,pointer_flag = find_var_type_in_shared_list(func_content,rename_var,sd_line_index)
+    taint_flag = False
     for unrolling in range(1,int(unrolling_times)):
         rename_rule = '_' + str(unrolling)
-        def_line_index,sd_line_index = extract_var_def_sd(func_content, function_name)
-        find_var,var,var_type = find_var_type(func_content,rename_var,sd_line_index)
-        # Work around here. Haven't dealt with if the variable is not in the shared data list
-        if find_var:
-            func_content.insert(def_line_index+1, [var_type[var_type.find('\"')+1:-1] + ' ' + rename_var+rename_rule + ';\n', rename_var+rename_rule])
-            func_content[sd_line_index+1][0] = func_content[sd_line_index+1][0][:func_content[sd_line_index+1][0].find('}')] + ',' + var+rename_rule + '};\n'
-            func_content[sd_line_index+2][0] = func_content[sd_line_index+2][0][:func_content[sd_line_index+2][0].find('}')] + ',' + var_type + '};\n'
+        # def_line_index,sd_line_index = extract_var_def_sd(func_content, function_name)
+        # find_var_in_shared,var,var_type,pointer_flag = find_var_type_in_shared_list(func_content,rename_var,sd_line_index)
+        # if find_var_in_shared is True, the variable is in the shared data list
+        # Otherwise, it is not in the shared data list
+
+        if find_var_in_shared:
+            # if func_content[sd_line_index][0].find(var+'_') == -1:
+                # print(func_content[sd_line_index][0])
+                # append definition for the renamed variable
+                # if pointer_flag and rename_var.find('*') == -1 and rename_var.find('[') == -1:
+
+            # check if the renamed variable definition is added or not:
+            if if_renamed_var_def_exist(func_content,var,unrolling):
+                break
+            if pointer_flag and rename_var.find('&') == -1:
+                # print(rename_var, pointer_flag)
+                if var_is_tainted(function_index, rename_var):
+                    taint_flag = True
+                    if line_status == 's':
+                        if var_type == '\"unsigned int\"':
+                            original_var_type = find_original_variable_defined_type(func_content,rename_var)
+                            func_content.insert(def_line_index+1, [original_var_type + ' *' + rename_var+rename_rule + ' = ' + rename_var + ';\n', rename_var+rename_rule])
+                        else:
+                            func_content.insert(def_line_index+1, [var_type[var_type.find('\"')+1:-1] + ' *' + rename_var+rename_rule + ' = ' + rename_var + ';\n', rename_var+rename_rule])
+                    elif line_status == 'n':
+                        func_content.insert(def_line_index+1, ['unsigned int ' + rename_var+rename_rule + ' = ' + rename_var + ';\n', rename_var+rename_rule])
+                else:
+                    func_content.insert(def_line_index+1, [var_type[var_type.find('\"')+1:-1] + ' *' + rename_var+rename_rule + ' = ' + rename_var + ';\n', rename_var+rename_rule])
+            else:
+                func_content.insert(def_line_index+1, [var_type[var_type.find('\"')+1:-1] + ' ' + rename_var+rename_rule + ' = ' + rename_var + ';\n', rename_var+rename_rule])
+            # update the shared variable statements for renamed variables
+            if var.find('+') != -1:
+                updated_sd_line_index = sd_line_index+1
+                while(1):
+                    if func_content[updated_sd_line_index][0].find('_sharedData') != -1:
+                        break
+                    else:
+                        updated_sd_line_index += 1
+                array_counter = count_size_of_array(func_content[updated_sd_line_index][0],var)
+                var_name = var[:var.find('+')]
+                append_data_content_with_count = ''
+                append_type_content_with_count = ''
+                for count in range(0,array_counter):
+                    append_data_content_with_count += var_name + rename_rule + '+' + str(count) + ','
+                    if taint_flag:
+                        append_type_content_with_count += '\"unsigned int\"' + ','
+                    else:
+                        append_type_content_with_count += var_type + ','
+
+                if func_content[updated_sd_line_index][0].find('_sharedData') != -1:
+                    func_content[updated_sd_line_index][0] = func_content[updated_sd_line_index][0][:func_content[updated_sd_line_index][0].find('}')] + ',' + append_data_content_with_count[:-1] + '};\n'
+                    func_content[updated_sd_line_index+1][0] = func_content[updated_sd_line_index+1][0][:func_content[updated_sd_line_index+1][0].find('}')] + ',' + append_type_content_with_count[:-1] + '};\n'
+            else:
+                updated_sd_line_index = sd_line_index+1
+                while(1):
+                    if func_content[updated_sd_line_index][0].find('_sharedData') != -1:
+                        break
+                    else:
+                        updated_sd_line_index += 1
+                if func_content[updated_sd_line_index][0].find('_sharedData') != -1:
+                    func_content[updated_sd_line_index][0] = func_content[updated_sd_line_index][0][:func_content[updated_sd_line_index][0].find('}')] + ',' + var+rename_rule + '};\n'
+                    if taint_flag:
+                        func_content[updated_sd_line_index+1][0] = func_content[updated_sd_line_index+1][0][:func_content[updated_sd_line_index+1][0].find('}')] + ',' + '\"unsigned int\"' + '};\n'
+                    else:
+                        func_content[updated_sd_line_index+1][0] = func_content[updated_sd_line_index+1][0][:func_content[updated_sd_line_index+1][0].find('}')] + ',' + var_type + '};\n'
+        else:
+            find_var_def = False
+            for line_index_for_var_def in range(1,def_line_index+1):
+                line_content_for_var_def = func_content[line_index_for_var_def][0]
+                if line_content_for_var_def.find(rename_var) != -1:
+                    var_type = line_content_for_var_def.strip().split(' ')[0]
+                if line_content_for_var_def.find(rename_var+rename_rule) != -1:
+                    find_var_def = True
+                    break
+            if not find_var_def:
+                # if pointer_flag and rename_var.find('*') == -1 and rename_var.find('[') == -1:
+                func_content.insert(def_line_index+1, [var_type + ' ' + rename_var+rename_rule + ' = ' + rename_var + ';\n', rename_var+rename_rule])
+    return assigning_var_list
+
+
+# return the original variable type
+def find_original_variable_defined_type(func_content,rename_var):
+    for line_content_list in func_content:
+        line_content = line_content_list[0]
+        if is_var_definition(line_content) and line_content.find(rename_var) != -1:
+            var_type = line_content.strip().split(' ')[0]
+            return var_type
+
+# check if the renamed variable definition is added or not:
+def if_renamed_var_def_exist(func_content,var,unrolling):
+    var_name = var
+    if var.find('*') != -1 or var.find('&') != -1:
+        var_name = var[1:]
+    elif var.find('[') != -1:
+        var_name = var[:var.find('[')]
+    if var_name.find('+') != -1:
+        var_name = var_name[:var_name.find('+')]
+    for line_content_list in func_content:
+        line_content = line_content_list[0]
+        if is_var_definition(line_content) and line_content.find(var_name+'_'+str(unrolling)) != -1:
+            return True
+    return False
+
+
+# count the size of the array in the shared data statement
+def count_size_of_array(shared_data_statement_content,var):
+    var_name = var[:var.find('+')]
+    count = 0
+    remaining_content = shared_data_statement_content
+    while(1):
+        if remaining_content.find(var_name + '+') != -1:
+            count += 1
+            remaining_content = remaining_content[remaining_content.find(var_name + '+')+len(var_name + '+'):]
+        else:
+            break
+    return count
+
+
+# check if the variable is tainted or not
+def var_is_tainted(function_index, var):
+    # check if the variable is in the tainted argument list
+    if check_if_var_is_in_tainted_list(all_functions[function_index][5][1], var):
+        return True
+    # check if the variable is in the tainted variable list
+    if check_if_var_is_in_tainted_list(all_functions[function_index][6][1], var):
+        return True
+    return False
+
+def check_if_var_is_in_tainted_list(list, var):
+    for list_item in list:
+        name = list_item[1]
+        if name.find(var) != -1 or (var.find('*') != -1 and name.find(var[1:]) != -1) or (var.find('[') != -1 and name.find(var[:var.find('[')]) != -1):
+            return True
+    return False
+
+# extract the assigning variables based on the line content
+def extract_assigning_variables(assigning_line_content):
+    assigning_var_list = []
+    for var in assigning_line_content.split(' '):
+        var = var.strip()
+        if var.find(';') != -1:
+            var = var[:-1]
+        if var and var not in assigning_var_list:
+            if not var.isdigit() and (var.find('(') == -1 and var.find(')') == -1 and var.find(',') == -1):
+                if var.find('+') == -1 and var.find('-') == -1 and var.find('*') == -1 and var.find('/') == -1:
+                    assigning_var_list.append(var)
+
+    return assigning_var_list
 
 
 # extract the line index of variable definition and the shared data statement
@@ -589,15 +993,30 @@ def extract_var_def_sd(func_content, function_name):
 
 
 # extract the renamed data type based on the original shared data
-def find_var_type(func_content, rename_var, sd_line_index):
+def find_var_type_in_shared_list(func_content, rename_var, sd_line_index):
+    pointer_flag = False
+    head_flag = False
+    for line_list in func_content:
+        if not head_flag:
+            head_flag = True
+        else:
+            line_content = line_list[0]
+            if line_content.find(rename_var) != -1 and is_var_definition(line_content) and line_content.find('shared') == -1 and (line_content.find('*'+rename_var) != -1 or line_content.find(rename_var+'[') != -1):
+                pointer_flag = True
+                break
     if func_content[sd_line_index][0].find(rename_var) != -1:
         shared_var_list = func_content[sd_line_index][0][func_content[sd_line_index][0].find('{')+1:func_content[sd_line_index][0].find('}')].split(',')
         shared_var_index = 0
         for shared_var in shared_var_list:
             if shared_var.find(rename_var) != -1:
                 shared_type_list = func_content[sd_line_index+1][0][func_content[sd_line_index+1][0].find('{')+1:func_content[sd_line_index+1][0].find('}')].split(',')
-                return True, shared_var, shared_type_list[shared_var_index]
+                # if pointer_flag and shared_type_list[shared_var_index].find('*') == -1 and shared_var.find('[') == -1:
+                #     var_type = '*' + shared_type_list[shared_var_index]
+                # else:
+                #     var_type = shared_type_list[shared_var_index]
+                return True, shared_var, shared_type_list[shared_var_index], pointer_flag
             shared_var_index += 1
+    return False, [], [], pointer_flag
 
 
 # find the index based on certain content (secure content or normal content)
@@ -656,55 +1075,124 @@ def update_line_content_by_renaming(line_status, function_name, rename_var):
 # check if we need renaming
 # input: loop_state, line_numbers, shared_arguments, shared_variables
 # output: True: need; False: NOT need
-def check_renaming_need(loop_state, line_numbers, shared_arguments, shared_variables):
+def check_renaming_need(loop_state, line_numbers, shared_arguments, shared_variables, iterator_list):
     loop_head = loop_state[0]
     loop_tail = loop_state[1]
     loop_head_index = loop_head - line_numbers[0][0]
     loop_tail_index = loop_tail - line_numbers[0][0]
     assigned_variable_list = []
     variable_list = []
-    if line_numbers[loop_head_index][1] == 'b':
-        start_flag = False
-        for loop_line_index in range(loop_head_index+1, loop_tail_index):
-            line_num = line_numbers[loop_line_index][0]
-            line_status = line_numbers[loop_line_index][1]
-            line_content = linecache.getline(source_file, line_num)
-            if not start_flag:
-                if line_status != 'b' and line_status != 'x':
-                    if line_status == 'n':
-                        start_flag = True
-                        if line_content.find(' = ') != -1:
-                            assigned_variable = line_content.strip().split(' = ')[0]
-                            if assigned_variable.find('[') == -1:
-                                if (not find_shared_data(assigned_variable, shared_arguments, shared_variables)) or len(line_numbers[loop_line_index]) == 2:
-                                    return False
-                                else:
-                                    assigned_variable_list.append(assigned_variable)
-                            else:
-                                return False
-                        else:
-                            return False
+
+    # if line_numbers[loop_head_index][1] == 'b':
+    #     start_flag = False
+    #     for loop_line_index in range(loop_head_index+1, loop_tail_index):
+    #         line_num = line_numbers[loop_line_index][0]
+    #         line_status = line_numbers[loop_line_index][1]
+    #         line_content = linecache.getline(source_file, line_num)
+    #         if not start_flag:
+    #             if line_status != 'b' and line_status != 'x':
+    #                 if line_status == 'n':
+    #                     start_flag = True
+    #                     if line_content.find(' = ') != -1:
+    #                         assigned_variable = line_content.strip().split(' = ')[0]
+    #                         if assigned_variable.find('[') == -1:
+    #                             if (not find_shared_data(assigned_variable, shared_arguments, shared_variables)) or len(line_numbers[loop_line_index]) == 2:
+    #                                 return False
+    #                             else:
+    #                                 assigned_variable_list.append(assigned_variable)
+    #                         else:
+    #                             return False
+    #                     else:
+    #                         return False
+    #                 else:
+    #                     return False
+    #             elif line_status == 'b' and line_content.find('for') != -1:
+    #                 return False
+    #         else:
+    #             if line_status == 's':
+    #                 if line_content.find(' = ') != -1:
+    #                     assigning_side = line_content.strip().split(' = ')[1]
+    #                     if find_shared_data(assigning_side, shared_arguments, shared_variables):
+    #                         for assigned_variable in assigned_variable_list:
+    #                             if assigning_side.find(assigned_variable) != -1:
+    #                                 if assigned_variable not in variable_list:
+    #                                     variable_list.append(assigned_variable)
+    #             elif line_status == 'n':
+    #                 if line_content.find(' = ') != -1:
+    #                     assigned_variable = line_content.strip().split(' = ')[0]
+    #                     if assigned_variable.find('[') == -1:
+    #                         if find_shared_data(assigned_variable, shared_arguments, shared_variables) and len(line_numbers[loop_line_index]) == 3:
+    #                             assigned_variable_list.append(assigned_variable)
+    # else:
+    #     return False
+
+
+    for loop_line_index in range(loop_head_index+1, loop_tail_index):
+        line_num = line_numbers[loop_line_index][0]
+        line_status = line_numbers[loop_line_index][1]
+        line_content = linecache.getline(source_file, line_num)
+        if line_status != 'x':
+            if len(line_numbers[loop_line_index]) == 3:
+                if line_content.find(' = ') != -1:
+                    assigned_variable = line_content.strip().split(' = ')[0]
+                    if assigned_variable.find('[') == -1:
+                        # if (not find_shared_data(assigned_variable, shared_arguments, shared_variables)):
+                        #     return False
+                        # else:
+                        assigned_variable_list.append(assigned_variable)
                     else:
-                        return False
-                elif line_status == 'b' and line_content.find('for') != -1:
-                    return False
+                        assigned_variable_list.append(assigned_variable[assigned_variable.find('[')+1:assigned_variable.find(']')])
+                    assigning_side = line_content.strip().split(' = ')[1]
+                    # if find_shared_data(assigning_side, shared_arguments, shared_variables):
+                    for assigned_variable in assigned_variable_list:
+                        if assigning_side.find(assigned_variable) != -1:
+                            if assigned_variable not in variable_list:
+                                variable_list.append(assigned_variable)
             else:
-                if line_status == 's':
-                    if line_content.find(' = ') != -1:
-                        assigning_side = line_content.strip().split(' = ')[1]
-                        if find_shared_data(assigning_side, shared_arguments, shared_variables):
-                            for assigned_variable in assigned_variable_list:
-                                if assigning_side.find(assigned_variable) != -1:
-                                    if assigned_variable not in variable_list:
-                                        variable_list.append(assigned_variable)
-                elif line_status == 'n':
-                    if line_content.find(' = ') != -1:
-                        assigned_variable = line_content.strip().split(' = ')[0]
-                        if assigned_variable.find('[') == -1:
-                            if find_shared_data(assigned_variable, shared_arguments, shared_variables) and len(line_numbers[loop_line_index]) == 3:
-                                assigned_variable_list.append(assigned_variable)
-    else:
-        return False
+                return False
+
+    # start_flag = False
+    # for loop_line_index in range(loop_head_index+1, loop_tail_index):
+    #     line_num = line_numbers[loop_line_index][0]
+    #     line_status = line_numbers[loop_line_index][1]
+    #     line_content = linecache.getline(source_file, line_num)
+    #     if not start_flag:
+    #         if line_status != 'x':
+    #             start_flag = True
+    #             if line_content.find(' = ') != -1:
+    #                 assigned_variable = line_content.strip().split(' = ')[0]
+    #                 if assigned_variable.find('[') == -1:
+    #                     if (not find_shared_data(assigned_variable, shared_arguments, shared_variables)) or len(line_numbers[loop_line_index]) == 2:
+    #                         return False
+    #                     else:
+    #                         assigned_variable_list.append(assigned_variable)
+    #                 else:
+    #                     return False
+    #             else:
+    #                 return False
+    #         elif line_status == 'b' and line_content.find('for') != -1:
+    #             return False
+    #     else:
+    #         if line_status == 's':
+    #             if line_content.find(' = ') != -1:
+    #                 assigning_side = line_content.strip().split(' = ')[1]
+    #                 if find_shared_data(assigning_side, shared_arguments, shared_variables):
+    #                     for assigned_variable in assigned_variable_list:
+    #                         if assigning_side.find(assigned_variable) != -1:
+    #                             if assigned_variable not in variable_list:
+    #                                 variable_list.append(assigned_variable)
+    #         elif line_status == 'n':
+    #             if line_content.find(' = ') != -1:
+    #                 assigned_variable = line_content.strip().split(' = ')[0]
+    #                 if assigned_variable.find('[') == -1:
+    #                     if find_shared_data(assigned_variable, shared_arguments, shared_variables) and len(line_numbers[loop_line_index]) == 3:
+    #                         assigned_variable_list.append(assigned_variable)
+
+    # prune iterators in the variable_list
+    for iterator in iterator_list:
+        if iterator in variable_list:
+            variable_list.remove(iterator)
+
     if variable_list:
         return variable_list
     else:
@@ -743,6 +1231,10 @@ def load_functions(function_type):
         function_status = 'n'
     function_index = 0
     global shared_data
+    global shared_address_for_pointer
+    # append empty [] to shared_address_for_pointer
+    for i in range(len(all_functions)):
+        shared_address_for_pointer.append([])
     for function in all_functions:
         current_function_status = function[1]
         if current_function_status == function_status or current_function_status == 'b':
@@ -812,21 +1304,67 @@ def if_check(line_num):
 # extract the data address
 # input: shared_arg_name
 # output: data address + ','
-def extract_data_address_type(shared_list):
-    # print('!!!!!!')
+def extract_data_address_type(function_index,shared_list,function_status):
     shared_type = shared_list[0]
     shared_name = shared_list[1]
-    if shared_name.find('*') != -1:
-        return '"' + shared_type + '"' + ',', shared_name[1:] + ','
-        # return '"' + shared_type + '"' + ',', shared_name + ','
-    elif shared_name.find('[') != -1:
-        # return '"' + shared_type + '"' + ',', shared_name[:shared_name.find('[')] + ','
-        # return '"' + shared_type + '"' + ',' + '_' + shared_name[shared_name.find['[']+1:shared_name.find[']']], shared_name[:shared_name.find('[')] + ','
-        # return '"' + shared_type + '"' + ',' + '*' + shared_name[shared_name.find['[']+1:shared_name.find[']']], shared_name[:shared_name.find('[')] + ','
-        return '"' + shared_type + '"' + ',', shared_name[:shared_name.find('[')] + '+' + shared_name[shared_name.find('[')+1:shared_name.find(']')] + ','
+    if var_is_address(function_index,shared_name) or shared_name.find('*') != -1 or shared_name.find('[') != -1:
+        if var_is_tainted(function_index, shared_name): # if the variable is tainted and shared, that means it only shares the address
+            if shared_name not in shared_address_for_pointer[function_index]:
+                if shared_name.find('[') != -1:
+                    if shared_name[:shared_name.find('[')] not in shared_address_for_pointer[function_index]:
+                        shared_address_for_pointer[function_index].append(shared_name[:shared_name.find('[')])
+                elif shared_name.find('*') != -1:
+                    if shared_name[1:] not in shared_address_for_pointer[function_index]:
+                        shared_address_for_pointer[function_index].append(shared_name[1:])
+                else:
+                    shared_address_for_pointer[function_index].append(shared_name)
+            if shared_name.find('*') != -1:
+                # if function_status == 'n':
+                return '"' + 'unsigned int' + '"' + ',', shared_name[1:] + ','
+                # elif function_status == 's':
+                #     return '"' + shared_type + '"' + ',', shared_name[1:] + ','
+            elif shared_name.find('[') != -1:
+                # if function_status == 'n':
+                return '"' + 'unsigned int' + '"' + ',', shared_name[:shared_name.find('[')] + '+' + shared_name[shared_name.find('[')+1:shared_name.find(']')] + ','
+                # elif function_status == 's':
+                #     return '"' + shared_type + '"' + ',', shared_name[:shared_name.find('[')] + '+' + shared_name[shared_name.find('[')+1:shared_name.find(']')] + ','
+        else:
+            if shared_name.find('*') != -1:
+                return '"' + shared_type + '"' + ',', shared_name[1:] + ','
+            elif shared_name.find('[') != -1:
+                return '"' + shared_type + '"' + ',', shared_name[:shared_name.find('[')] + '+' + shared_name[shared_name.find('[')+1:shared_name.find(']')] + ','
     else:
-        return '"' + shared_type + '"' + ',', '&' + shared_name + ','
-        # return '"' + shared_type + '"' + ',', shared_name + ','
+        if shared_name.find('*') != -1:
+            return '"' + shared_type + '"' + ',', shared_name[1:] + ','
+            # return '"' + shared_type + '"' + ',', shared_name + ','
+        elif shared_name.find('[') != -1:
+            # return '"' + shared_type + '"' + ',', shared_name[:shared_name.find('[')] + ','
+            # return '"' + shared_type + '"' + ',' + '_' + shared_name[shared_name.find['[']+1:shared_name.find[']']], shared_name[:shared_name.find('[')] + ','
+            # return '"' + shared_type + '"' + ',' + '*' + shared_name[shared_name.find['[']+1:shared_name.find[']']], shared_name[:shared_name.find('[')] + ','
+            return '"' + shared_type + '"' + ',', shared_name[:shared_name.find('[')] + '+' + shared_name[shared_name.find('[')+1:shared_name.find(']')] + ','
+        else:
+            return '"' + shared_type + '"' + ',', '&' + shared_name + ','
+            # return '"' + shared_type + '"' + ',', shared_name + ','
+
+
+# check if the variable is address or not
+def var_is_address(function_index,variable):
+    original_argument_list = all_functions[function_index][5][0]
+    original_variable_list = all_functions[function_index][6][0]
+    flag = False
+    for arg_list in original_argument_list:
+        arg_name = arg_list[1]
+        if arg_name.find(variable) != -1 and (arg_name.find('*') != -1 or arg_name.find('[') != -1):
+            flag = True
+            break
+    for var_list in original_variable_list:
+        var_name = var_list[1]
+        if var_name.find(variable) != -1 and (var_name.find('*') != -1 or var_name.find('[') != -1):
+            flag = True
+            break
+    if flag and variable.find('*') == -1 and variable.find('[') == -1:
+        return True
+    return False
 
 
 # read the line status data structure and write into the list
@@ -835,6 +1373,7 @@ def extract_data_address_type(shared_list):
 def read_function_content(function_index, function_status):
     global all_secure_shared_data
     global all_normal_shared_data
+    global shared_address_for_pointer
     function_name = all_functions[function_index][0]
     if function_status == 's':
         opposite_status = 'n'
@@ -853,12 +1392,12 @@ def read_function_content(function_index, function_status):
     #     shared_data += all_functions[function_index][6][4]
     if len(all_functions[function_index][5]) >= 4:
         for shared_arg_list in all_functions[function_index][5][4]:
-            shared_type, shared_data = extract_data_address_type(shared_arg_list)
+            shared_type, shared_data = extract_data_address_type(function_index,shared_arg_list,function_status)
             shared_multi_type += shared_type
             shared_multi_data += shared_data
     if len(all_functions[function_index][6]) >= 4:
         for shared_var_list in all_functions[function_index][6][4]:
-            shared_type, shared_data = extract_data_address_type(shared_var_list)
+            shared_type, shared_data = extract_data_address_type(function_index,shared_var_list,function_status)
             shared_multi_type += shared_type
             shared_multi_data += shared_data
     shared_multi_type = shared_multi_type[:-1]
@@ -872,6 +1411,7 @@ def read_function_content(function_index, function_status):
         if shared_multi_data != '}':
             all_normal_shared_data.append([function_name,[shared_multi_type], [shared_multi_data]])
     loop_if_flag = False
+
     while(1):
         if line_num_list_index == len(all_functions[function_index][2]):
             break
@@ -924,7 +1464,7 @@ def read_function_content(function_index, function_status):
                         function_content.append([sharedDataArray_statement(function_status, function_name)[0], 'sharedDataArray'])
                         function_content.append([sharedDataArray_statement(function_status, function_name)[1], 'sharedTypeArray'])
             function_content.append([linecache.getline(source_file, line_num), str(line_num)])
-            # Testing Needed!!!!!! For unrolling and renaming
+            # For unrolling and renaming
             if sys.argv[2] == '1' and sys.argv[3] == '1' and sys.argv[4] != '0':
                 if not unrolling_flag:
                     unrolling_tail_index = need_unrolling_loop(function_index, line_num_list_index)
@@ -1031,6 +1571,29 @@ def read_function_content(function_index, function_status):
             if loop_add_missing_smc(function_index, line_num_list_index, function_status, opposite_status):
                 function_content.append(["\tasm volatile(\"smc #0\\n\\t\");\n", 'smc'])
         line_num_list_index += 1
+
+    # In the case where there is shared address, append additional push in the secure world and pull in the normal world
+    # if shared_address_for_pointer[function_index] != []:
+        # print('implementation needed!!!',function_content)
+
+    # check if the function only contains the variable definition. If so, add SMC
+    if shared_multi_data == '}' and sys.argv[2] == '1' and sys.argv[3] == '1':
+        head_flag = False
+        variable_definition_flag = False
+        line_content_list_index = 0
+        for line_content_list in function_content:
+            if not head_flag:
+                head_flag = True
+            else:
+                line_content = line_content_list[0]
+                if not is_var_definition(line_content):
+                    if (line_content_list_index + 1) != len(function_content) and line_content.strip() != '':
+                        variable_definition_flag = True
+                        break
+            line_content_list_index += 1
+        if not variable_definition_flag:
+            function_content.insert(-1, ["\tasm volatile(\"smc #0\\n\\t\");\n", 'smc'])
+
     return function_content
 
 
@@ -1142,7 +1705,7 @@ def loop_iterator_and_definition(function_index, line_num_list_index, unrolling_
         adder = str(1)
         operator = '+'
     elif line_content.find(' += ') != -1:
-        loop_definition = line_content[:line_content.find(' +=') - len(iterator+'; ')] + '/' + iterator + '/' + unrolling_times + '*' + unrolling_times + line_content[line_content.find(' +=') - len(iterator+'; '):line_content.find(' ) {')] + '*' + unrolling_times + ') {\n'
+        loop_definition = line_content[:line_content.find(' +=') - len(iterator+'; ')] + '/' + line_content[line_content.find('+=')+2:line_content.find(')')] + '/' + unrolling_times + '*' + unrolling_times + line_content[line_content.find(' +=') - len(iterator+'; '):line_content.find(' ) {')] + '*' + unrolling_times + ') {\n'
         adder = loop_control_list[2].split(' += ')[1].strip()
         operator = '+'
     elif line_content.find('--') != -1:
@@ -1150,7 +1713,7 @@ def loop_iterator_and_definition(function_index, line_num_list_index, unrolling_
         adder = str(1)
         operator = '-'
     elif line_content.find(' -= ') != -1:
-        loop_definition = line_content[:line_content.find(' -=') - len(iterator+'; ')] + '/' + iterator + '/' + unrolling_times + '*' + unrolling_times + line_content[line_content.find(' -=') - len(iterator+'; '):line_content.find(' ) {')] + '*' + unrolling_times + ') {\n'
+        loop_definition = line_content[:line_content.find(' -=') - len(iterator+'; ')] + '/' + + line_content[line_content.find('-=')+2:line_content.find(')')] + '/' + unrolling_times + '*' + unrolling_times + line_content[line_content.find(' -=') - len(iterator+'; '):line_content.find(' ) {')] + '*' + unrolling_times + ') {\n'
         adder = loop_control_list[2].split(' -= ')[1].strip()
         operator = '-'
     return iterator,loop_definition,adder,operator
@@ -1172,15 +1735,17 @@ def find_element_in_line(element, line_content):
         else:
             return index_list
 
+
 # swei: check if the input line is a variable definition (i.e., contain data types)
 def is_var_definition(line_content) :
-    data_type_list = ['int', 'int*', 'char', 'char*', 'double', 'double*', 'long', 'long*', 'float', 'float*']
+    data_type_list = ['int', 'int*', 'char', 'char*', 'double', 'double*', 'long', 'long*', 'float', 'float*', 'void', 'void*']
     flag = False
     for data_type in data_type_list:
         if line_content.find(data_type) != -1:
             flag = True
             break
     return flag
+
 
 # output the number of lines for the certain world content
 # input: world_function_content
@@ -1234,7 +1799,7 @@ def loop_add_missing_smc(function_index, current_line_index, function_status, op
 #     stack_functions.append("}\n\n")
 #     return stack_functions
 
-# Testing Needed!!! Haven't support array in the shared data yet!!!
+# obtain the shared data statements for the data and type
 def sharedDataArray_statement(funtion_status, function_name):
     global all_secure_shared_data
     global all_normal_shared_data
@@ -1251,7 +1816,8 @@ def sharedDataArray_statement(funtion_status, function_name):
 
 
 # add smc for TZm and TZb
-def TZmb_add_smc():
+# def TZmb_add_smc():
+def subfunction_call_in_secureMain():
     global all_functions
     global subfunction_in_secureMain
     secure_function_names = []
@@ -1290,26 +1856,46 @@ def extract_called_arguments_type(sub_function_called_arguments, function_index)
     for called_argument in sub_function_called_arguments:
         line_num_list_index = 0
         find_flag = False
+        head = False
         for line_num_list in line_numbers:
             line_num = line_num_list[0]
             line_content = linecache.getline(source_file, line_num)
-            if line_content.find(called_argument) != -1:
-                line_content_list = line_content.strip().split(' ')
-                line_content_element_index = 0
-                for line_content_element in line_content_list:
-                    if line_content_element.find(called_argument) != -1:
-                        if line_content_element.find('[') != -1:
-                            called_argTypes.append('*' + line_content_list[line_content_element_index - 1])
-                        else:
-                            called_argTypes.append(line_content_list[line_content_element_index - 1])
-                        find_flag = True
+            if not head:
+                if line_content.find(called_argument) != -1:
+                    print('have not deal with when the variable is found in the function definition statement')
+                    break
+                head = True
+            else:
+                if is_var_definition(line_content):
+                    if line_content.find(called_argument) != -1:
+                        line_content_list = line_content.strip().split(' ')
+                        called_argTypes.append(line_content_list[0])
                         break
-                    line_content_element_index += 1
-            if find_flag:
-                break
+                    elif called_argument.find('[') != -1 and line_content.find('*') != -1:
+                        if line_content.find(called_argument[:called_argument.find('[')]) != -1:
+                            line_content_list = line_content.strip().split(' ')
+                            called_argTypes.append(line_content_list[0])
+                            break
+
+
+            # if line_content.find(called_argument) != -1:
+            #     line_content_list = line_content.strip().split(' ')
+            #     line_content_element_index = 0
+            #     for line_content_element in line_content_list:
+            #         if line_content_element.find(called_argument) != -1:
+            #             # if line_content_element.find('[') != -1:
+            #             #     called_argTypes.append('*' + line_content_list[line_content_element_index - 1])
+            #             # else:
+            #             called_argTypes.append(line_content_list[line_content_element_index - 1])
+            #             find_flag = True
+            #             break
+            #         line_content_element_index += 1
+            # if find_flag:
+            #     break
                 # if line_num_list_index == 0: # function call statement
                 # else: # variable definition
             line_num_list_index += 1
+
     return called_argTypes
 
 
@@ -1341,6 +1927,10 @@ def generate_normal_world():
 
     # stack functions
     for line in stack_functions_push_statements:
+        f.write(line)
+    for line in stack_functions_pull_statements:
+        f.write(line)
+    for line in stack_functions_for_NW:
         f.write(line)
 
     # write the normal function defines
@@ -1421,12 +2011,16 @@ def generate_secure_world():
     f.write(stack_pointer)
 
     # stack functions
+    for line in stack_functions_push_statements:
+        f.write(line)
     for line in stack_functions_pull_statements:
+        f.write(line)
+    for line in stack_functions_for_SW:
         f.write(line)
 
     # writing secure functions
-    for line in secure_functions_content:
-        for line_content in line[1]:
+    for function_content in secure_functions_content:
+        for line_content in function_content[1]:
             f.write(line_content[0])
         f.write("\n")
 
@@ -1749,13 +2343,15 @@ stack_functions_pull_statements = [
             "\t\t\tpullInteger(sharedData[i]);\n",
         "\t\telse if (sharedType[i][0] == \'d\')\n",
             "\t\t\tpullDouble(sharedData[i]);\n",
+        "\t\telse if (sharedType[i][0] == \'u\')\n",
+            "\t\t\tpullInteger(sharedData[i]);\n",
     "\t}\n",
 "}\n\n",
 
-"void smc_pull(void* sharedData[], char* sharedType[], int array_size){\n",
-    "\tasm volatile(\"smc #0\\n\\t\");\n",
-    "\tpull(sharedData,sharedType,array_size);\n",
-    "}\n\n"
+# "void smc_pull(void* sharedData[], char* sharedType[], int array_size){\n",
+#     "\tasm volatile(\"smc #0\\n\\t\");\n",
+#     "\tpull(sharedData,sharedType,array_size);\n",
+#     "}\n\n"
 ]
 
 stack_functions_push_statements = [
@@ -1833,12 +2429,30 @@ stack_functions_push_statements = [
             "\t\t\tpushInteger(sharedData[i]);\n",
         "\t\telse if (sharedType[i][0] == \'d\')\n",
             "\t\t\tpushDouble(sharedData[i]);\n",
+        "\t\telse if (sharedType[i][0] == \'u\')\n",
+            "\t\t\tpushInteger(sharedData[i]);\n",
     "\t}\n",
 "}\n\n",
 
+# "void push_smc(void* sharedData[], char* sharedType[], int array_size){\n",
+#     "\tpush(sharedData,sharedType,array_size);\n",
+#     "\tasm volatile(\"smc #0\\n\\t\");\n",
+#     "}\n\n"
+]
+
+stack_functions_for_SW = [
+"void smc_pull(void* sharedData[], char* sharedType[], int array_size){\n",
+    "\tpush(sharedData,sharedType,array_size);\n",
+    "\tasm volatile(\"smc #0\\n\\t\");\n",
+    "\tpull(sharedData,sharedType,array_size);\n",
+"}\n\n"
+]
+
+stack_functions_for_NW = [
 "void push_smc(void* sharedData[], char* sharedType[], int array_size){\n",
     "\tpush(sharedData,sharedType,array_size);\n",
     "\tasm volatile(\"smc #0\\n\\t\");\n",
+    "\tpull(sharedData,sharedType,array_size);\n",
     "}\n\n"
 ]
 
