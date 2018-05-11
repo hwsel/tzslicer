@@ -1,11 +1,9 @@
-# TZSlicer
-<strong>
-This work is not completed, and it still requires ongoing improvements.
-</strong>
+This is a preliminary version of the source code for TZSlicer based on our HOST 2018 publication: "TZSlicer: Security-Aware Dynamic Program Slicing for Hardware Isolation". Further updates of the code will be provided to this site as the project continues. Please direct your questions and comments to hwselunl@gmail.com.
 
+# TZSlicer
 
 ## 1 Framework Overview
- - TZSlicer is an C program slicer for hardware isolation [(ARM TrustZone)](http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.prd29-genc-009492c/index.html), which processes the sensitive data in the secure world and non-sensitive data in the normal world.
+ - TZSlicer is a C program slicer for hardware isolation frameworks (e.g., ARM TrustZone), which automatically allocates the sensitive data/code in the secure world and non-sensitive data/code in the normal world.
 
  - TZSlicer includes the following components:
    - Taint Analyzer: using [TaintGrind (v.3.12.0)](https://github.com/wmkhoo/taintgrind)
